@@ -1,6 +1,7 @@
 import { Component, signal, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DataService } from '../../services/data.service';
+import { AuthService } from '../../services/auth.service';
 import { RoleService } from '../../services/role.service';
 import { InstructorFormComponent } from './instructor-form/instructor-form.component';
 import { StudentFormComponent, StudentFormData } from './student-form/student-form.component';
@@ -17,6 +18,7 @@ import Swal from 'sweetalert2';
 })
 export class CreateAccountComponent {
   private dataService = inject(DataService);
+  private authService = inject(AuthService);
   private roleService = inject(RoleService);
   
   // Lucide icons
@@ -45,30 +47,36 @@ export class CreateAccountComponent {
 
   async onInstructorSubmit(instructor: Instructor) {
     try {
-      // Create user account first
-      const userId = 'U' + Date.now();
-      const user = {
-        user_id: userId,
-        email: instructor.email,
-        password: 'instructor123', // Default password
-        role: 'instructor' as const,
-        first_name: instructor.first_name,
-        middle_name: instructor.middle_name,
-        last_name: instructor.last_name,
-        full_name: instructor.full_name,
-        created_at: new Date().toISOString()
-      };
-      
-      await this.dataService.addUser(user);
-      
-      // Then create instructor profile
-      const instructorWithUser = {
+      // Prepare instructor data
+      const instructorData = {
         ...instructor,
-        user_id: userId,
+        user_id: '', // Will be set by auth service
         created_at: new Date().toISOString()
       };
       
-      await this.dataService.addInstructor(instructorWithUser);
+      // Create Firebase Auth account, user document, and instructor profile all at once
+      const result = await this.authService.createUserAccount(
+        instructor.email,
+        'instructor123',
+        {
+          role: 'instructor',
+          first_name: instructor.first_name,
+          middle_name: instructor.middle_name,
+          last_name: instructor.last_name
+        },
+        {
+          type: 'instructor',
+          data: instructorData
+        }
+      );
+      
+      if (!result.success || !result.uid) {
+        throw new Error('Failed to create auth account');
+      }
+      
+      // Reload data to show the new instructor
+      await this.dataService.loadInstructors();
+      await this.dataService.loadUsers();
       
       await Swal.fire({
         title: 'Success!',
@@ -78,6 +86,7 @@ export class CreateAccountComponent {
         showConfirmButton: false
       });
     } catch (error) {
+      console.error('Error creating instructor:', error);
       await Swal.fire({
         title: 'Error!',
         text: 'Failed to create instructor account. Please try again.',
@@ -88,55 +97,64 @@ export class CreateAccountComponent {
 
   async onStudentSubmit(data: StudentFormData) {
     try {
-      // Create student user account
-      const studentUserId = 'U' + Date.now();
-      const studentUser = {
-        user_id: studentUserId,
-        email: data.student.email,
-        password: 'student123', // Default password
-        role: 'student' as const,
-        first_name: data.student.first_name,
-        middle_name: data.student.middle_name,
-        last_name: data.student.last_name,
-        full_name: data.student.full_name,
-        created_at: new Date().toISOString()
-      };
-      
-      await this.dataService.addUser(studentUser);
-      
-      // Create student profile
-      const studentWithUser = {
+      // Prepare student data
+      const studentData = {
         ...data.student,
-        user_id: studentUserId,
+        user_id: '',
         created_at: new Date().toISOString()
       };
       
-      await this.dataService.addStudent(studentWithUser);
+      // Create student account with profile
+      const studentResult = await this.authService.createUserAccount(
+        data.student.email,
+        'student123',
+        {
+          role: 'student',
+          first_name: data.student.first_name,
+          middle_name: data.student.middle_name,
+          last_name: data.student.last_name
+        },
+        {
+          type: 'student',
+          data: studentData
+        }
+      );
       
-      // Create parent user account
-      const parentUserId = 'U' + (Date.now() + 1);
-      const parentUser = {
-        user_id: parentUserId,
-        email: data.parent.email,
-        password: 'parent123', // Default password
-        role: 'parent' as const,
-        first_name: data.parent.first_name,
-        middle_name: data.parent.middle_name,
-        last_name: data.parent.last_name,
-        full_name: data.parent.full_name,
-        created_at: new Date().toISOString()
-      };
+      if (!studentResult.success || !studentResult.uid) {
+        throw new Error('Failed to create student auth account');
+      }
       
-      await this.dataService.addUser(parentUser);
-      
-      // Create parent profile
-      const parentWithUser = {
+      // Prepare parent data
+      const parentData = {
         ...data.parent,
-        user_id: parentUserId,
+        user_id: '',
         created_at: new Date().toISOString()
       };
       
-      await this.dataService.addParent(parentWithUser);
+      // Create parent account with profile
+      const parentResult = await this.authService.createUserAccount(
+        data.parent.email,
+        'parent123',
+        {
+          role: 'parent',
+          first_name: data.parent.first_name,
+          middle_name: data.parent.middle_name,
+          last_name: data.parent.last_name
+        },
+        {
+          type: 'parent',
+          data: parentData
+        }
+      );
+      
+      if (!parentResult.success || !parentResult.uid) {
+        throw new Error('Failed to create parent auth account');
+      }
+      
+      // Reload data to show the new accounts
+      await this.dataService.loadStudents();
+      await this.dataService.loadParents();
+      await this.dataService.loadUsers();
       
       await Swal.fire({
         title: 'Success!',
@@ -146,6 +164,7 @@ export class CreateAccountComponent {
         showConfirmButton: false
       });
     } catch (error) {
+      console.error('Error creating student:', error);
       await Swal.fire({
         title: 'Error!',
         text: 'Failed to create student account. Please try again.',

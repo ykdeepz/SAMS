@@ -103,11 +103,11 @@ export class TakeAttendanceComponent implements OnInit {
       method
     };
 
-    const success = await this.dataService.addAttendance(record);
-    if (success) {
+    try {
+      await this.dataService.addAttendance(record);
       this.showMessage(`Marked ${studentName} as ${status}`, 'success');
-    } else {
-      this.showMessage('Already marked today', 'error');
+    } catch (error) {
+      this.showMessage('Error marking attendance', 'error');
     }
   }
 

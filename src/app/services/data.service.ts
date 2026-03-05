@@ -1,14 +1,22 @@
 import { Injectable, signal, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { 
+  collection, 
+  doc, 
+  getDocs, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc,
+  query,
+  where
+} from 'firebase/firestore';
+import { FirebaseService } from './firebase.service';
 import { Student, Subject, Attendance, SubjectEnrollment, Instructor, Parent, User, Department } from '../models/user.model';
-import { firstValueFrom } from 'rxjs';
 
 @Injectable({
   providedIn: 'root'
 })
 export class DataService {
-  private http = inject(HttpClient);
-  private apiUrl = 'http://localhost:3000';
+  private firebaseService = inject(FirebaseService);
 
   students = signal<Student[]>([]);
   subjects = signal<Subject[]>([]);
@@ -39,8 +47,8 @@ export class DataService {
   // Users
   async loadUsers() {
     try {
-      const users = await firstValueFrom(this.http.get<User[]>(`${this.apiUrl}/users`));
-      this.users.set(users);
+      const snapshot = await getDocs(collection(this.firebaseService.firestore, 'users'));
+      this.users.set(snapshot.docs.map(doc => doc.data() as User));
     } catch (error) {
       console.error('Error loading users:', error);
     }
@@ -48,328 +56,338 @@ export class DataService {
 
   async addUser(user: User) {
     try {
-      const newUser = await firstValueFrom(this.http.post<User>(`${this.apiUrl}/users`, user));
-      this.users.update(u => [...u, newUser]);
-      return newUser;
+      // Remove undefined values
+      const cleanUser = Object.fromEntries(
+        Object.entries(user).filter(([_, v]) => v !== undefined)
+      );
+      await addDoc(collection(this.firebaseService.firestore, 'users'), cleanUser);
+      await this.loadUsers();
     } catch (error) {
       console.error('Error adding user:', error);
-      throw error;
     }
   }
 
   async updateUser(user: User) {
     try {
-      const updated = await firstValueFrom(this.http.put<User>(`${this.apiUrl}/users/${user.user_id}`, user));
-      this.users.update(u => u.map(usr => usr.user_id === user.user_id ? updated : usr));
-      return updated;
+      if (!user.user_id) return;
+      await updateDoc(doc(this.firebaseService.firestore, 'users', user.user_id), { ...user });
+      await this.loadUsers();
     } catch (error) {
       console.error('Error updating user:', error);
-      throw error;
     }
   }
 
   async deleteUser(userId: string) {
     try {
-      await firstValueFrom(this.http.delete(`${this.apiUrl}/users/${userId}`));
-      this.users.update(u => u.filter(usr => usr.user_id !== userId));
+      await deleteDoc(doc(this.firebaseService.firestore, 'users', userId));
+      await this.loadUsers();
     } catch (error) {
       console.error('Error deleting user:', error);
-      throw error;
     }
   }
 
   // Students
   async loadStudents() {
     try {
-      const students = await firstValueFrom(this.http.get<Student[]>(`${this.apiUrl}/students`));
-      this.students.set(students);
+      const snapshot = await getDocs(collection(this.firebaseService.firestore, 'students'));
+      this.students.set(snapshot.docs.map(doc => doc.data() as Student));
     } catch (error) {
       console.error('Error loading students:', error);
     }
   }
 
-  getStudents() { return this.students(); }
-  
+  getStudents() {
+    return this.students();
+  }
+
   async addStudent(student: Student) {
     try {
-      const newStudent = await firstValueFrom(this.http.post<Student>(`${this.apiUrl}/students`, student));
-      this.students.update(s => [...s, newStudent]);
-      return newStudent;
+      // Remove undefined values
+      const cleanStudent = Object.fromEntries(
+        Object.entries(student).filter(([_, v]) => v !== undefined)
+      );
+      await addDoc(collection(this.firebaseService.firestore, 'students'), cleanStudent);
+      await this.loadStudents();
     } catch (error) {
       console.error('Error adding student:', error);
-      throw error;
     }
   }
 
   async updateStudent(student: Student) {
     try {
-      const updated = await firstValueFrom(this.http.put<Student>(`${this.apiUrl}/students/${student.student_id}`, student));
-      this.students.update(s => s.map(st => st.student_id === student.student_id ? updated : st));
-      return updated;
+      if (!student.id) return;
+      await updateDoc(doc(this.firebaseService.firestore, 'students', student.id.toString()), { ...student });
+      await this.loadStudents();
     } catch (error) {
       console.error('Error updating student:', error);
-      throw error;
     }
   }
 
   async deleteStudent(studentId: string) {
     try {
-      await firstValueFrom(this.http.delete(`${this.apiUrl}/students/${studentId}`));
-      this.students.update(s => s.filter(st => st.student_id !== studentId));
+      await deleteDoc(doc(this.firebaseService.firestore, 'students', studentId));
+      await this.loadStudents();
     } catch (error) {
       console.error('Error deleting student:', error);
-      throw error;
     }
   }
 
   // Subjects
   async loadSubjects() {
     try {
-      const subjects = await firstValueFrom(this.http.get<Subject[]>(`${this.apiUrl}/subjects`));
-      this.subjects.set(subjects);
+      const snapshot = await getDocs(collection(this.firebaseService.firestore, 'subjects'));
+      this.subjects.set(snapshot.docs.map(doc => doc.data() as Subject));
     } catch (error) {
       console.error('Error loading subjects:', error);
     }
   }
 
-  getSubjects() { return this.subjects(); }
-  
+  getSubjects() {
+    return this.subjects();
+  }
+
   async addSubject(subject: Subject) {
     try {
-      const newSubject = await firstValueFrom(this.http.post<Subject>(`${this.apiUrl}/subjects`, subject));
-      this.subjects.update(s => [...s, newSubject]);
-      return newSubject;
+      // Remove undefined values
+      const cleanSubject = Object.fromEntries(
+        Object.entries(subject).filter(([_, v]) => v !== undefined)
+      );
+      await addDoc(collection(this.firebaseService.firestore, 'subjects'), cleanSubject);
+      await this.loadSubjects();
     } catch (error) {
       console.error('Error adding subject:', error);
-      throw error;
     }
   }
 
   async updateSubject(subject: Subject) {
     try {
-      const updated = await firstValueFrom(this.http.put<Subject>(`${this.apiUrl}/subjects/${subject.subject_id}`, subject));
-      this.subjects.update(s => s.map(sub => sub.subject_id === subject.subject_id ? updated : sub));
-      return updated;
+      if (!subject.id) return;
+      await updateDoc(doc(this.firebaseService.firestore, 'subjects', subject.id.toString()), { ...subject });
+      await this.loadSubjects();
     } catch (error) {
       console.error('Error updating subject:', error);
-      throw error;
     }
   }
 
   async deleteSubject(id: string) {
     try {
-      await firstValueFrom(this.http.delete(`${this.apiUrl}/subjects/${id}`));
-      this.subjects.update(s => s.filter(sub => sub.subject_id !== id));
+      await deleteDoc(doc(this.firebaseService.firestore, 'subjects', id));
+      await this.loadSubjects();
     } catch (error) {
       console.error('Error deleting subject:', error);
-      throw error;
     }
   }
 
   // Attendance
   async loadAttendance() {
     try {
-      const attendance = await firstValueFrom(this.http.get<Attendance[]>(`${this.apiUrl}/attendance`));
-      this.attendance.set(attendance);
+      const snapshot = await getDocs(collection(this.firebaseService.firestore, 'attendance'));
+      this.attendance.set(snapshot.docs.map(doc => doc.data() as Attendance));
     } catch (error) {
       console.error('Error loading attendance:', error);
     }
   }
 
-  getAttendance() { return this.attendance(); }
-  
-  async addAttendance(record: Attendance) {
-    // Check for duplicate
-    const exists = this.attendance().some(a => 
-      a.student_id === record.student_id && 
-      a.subject_id === record.subject_id && 
-      new Date(a.date).toDateString() === new Date(record.date).toDateString()
-    );
-    if (exists) return false;
+  getAttendance() {
+    return this.attendance();
+  }
 
+  async addAttendance(record: Attendance) {
     try {
-      const newRecord = await firstValueFrom(this.http.post<Attendance>(`${this.apiUrl}/attendance`, record));
-      this.attendance.update(a => [...a, newRecord]);
-      return true;
+      // Remove undefined values
+      const cleanRecord = Object.fromEntries(
+        Object.entries(record).filter(([_, v]) => v !== undefined)
+      );
+      await addDoc(collection(this.firebaseService.firestore, 'attendance'), cleanRecord);
+      await this.loadAttendance();
     } catch (error) {
       console.error('Error adding attendance:', error);
-      return false;
+      throw error;
     }
   }
 
   // Enrollments
   async loadEnrollments() {
     try {
-      const enrollments = await firstValueFrom(this.http.get<SubjectEnrollment[]>(`${this.apiUrl}/enrollments`));
-      this.enrollments.set(enrollments);
+      const snapshot = await getDocs(collection(this.firebaseService.firestore, 'enrollments'));
+      this.enrollments.set(snapshot.docs.map(doc => doc.data() as SubjectEnrollment));
     } catch (error) {
       console.error('Error loading enrollments:', error);
     }
   }
 
-  getEnrollments() { return this.enrollments(); }
-  
+  getEnrollments() {
+    return this.enrollments();
+  }
+
   async enrollStudent(enrollment: SubjectEnrollment) {
     try {
-      const newEnrollment = await firstValueFrom(this.http.post<SubjectEnrollment>(`${this.apiUrl}/enrollments`, enrollment));
-      this.enrollments.update(e => [...e, newEnrollment]);
-      return newEnrollment;
+      // Remove undefined values
+      const cleanEnrollment = Object.fromEntries(
+        Object.entries(enrollment).filter(([_, v]) => v !== undefined)
+      );
+      await addDoc(collection(this.firebaseService.firestore, 'enrollments'), cleanEnrollment);
+      await this.loadEnrollments();
     } catch (error) {
       console.error('Error enrolling student:', error);
-      throw error;
     }
   }
 
   async unenrollStudent(enrollmentId: string) {
     try {
-      await firstValueFrom(this.http.delete(`${this.apiUrl}/enrollments/${enrollmentId}`));
-      this.enrollments.update(e => e.filter(enr => enr.enrollment_id !== enrollmentId));
+      await deleteDoc(doc(this.firebaseService.firestore, 'enrollments', enrollmentId));
+      await this.loadEnrollments();
     } catch (error) {
       console.error('Error unenrolling student:', error);
-      throw error;
     }
   }
 
   // Instructors
   async loadInstructors() {
     try {
-      const instructors = await firstValueFrom(this.http.get<Instructor[]>(`${this.apiUrl}/instructors`));
-      this.instructors.set(instructors);
+      const snapshot = await getDocs(collection(this.firebaseService.firestore, 'instructors'));
+      this.instructors.set(snapshot.docs.map(doc => doc.data() as Instructor));
     } catch (error) {
       console.error('Error loading instructors:', error);
     }
   }
 
-  getInstructors() { return this.instructors(); }
+  getInstructors() {
+    return this.instructors();
+  }
 
   async getInstructorByUserId(userId: string): Promise<Instructor | undefined> {
     try {
-      const instructors = await firstValueFrom(this.http.get<Instructor[]>(`${this.apiUrl}/instructors?user_id=${userId}`));
-      return instructors[0];
+      const q = query(collection(this.firebaseService.firestore, 'instructors'), where('user_id', '==', userId));
+      const snapshot = await getDocs(q);
+      return snapshot.empty ? undefined : snapshot.docs[0].data() as Instructor;
     } catch (error) {
-      console.error('Error getting instructor by user ID:', error);
+      console.error('Error getting instructor:', error);
       return undefined;
     }
   }
 
-  
   async addInstructor(instructor: Instructor) {
     try {
-      const newInstructor = await firstValueFrom(this.http.post<Instructor>(`${this.apiUrl}/instructors`, instructor));
-      this.instructors.update(i => [...i, newInstructor]);
-      return newInstructor;
+      // Remove undefined values
+      const cleanInstructor = Object.fromEntries(
+        Object.entries(instructor).filter(([_, v]) => v !== undefined)
+      );
+      await addDoc(collection(this.firebaseService.firestore, 'instructors'), cleanInstructor);
+      await this.loadInstructors();
     } catch (error) {
       console.error('Error adding instructor:', error);
-      throw error;
     }
   }
 
   async updateInstructor(instructor: Instructor) {
     try {
-      const updated = await firstValueFrom(this.http.put<Instructor>(`${this.apiUrl}/instructors/${instructor.instructor_id}`, instructor));
-      this.instructors.update(i => i.map(inst => inst.instructor_id === instructor.instructor_id ? updated : inst));
-      return updated;
+      if (!instructor.id) return;
+      await updateDoc(doc(this.firebaseService.firestore, 'instructors', instructor.id.toString()), { ...instructor });
+      await this.loadInstructors();
     } catch (error) {
       console.error('Error updating instructor:', error);
-      throw error;
     }
   }
 
   async deleteInstructor(instructorId: string) {
     try {
-      await firstValueFrom(this.http.delete(`${this.apiUrl}/instructors/${instructorId}`));
-      this.instructors.update(i => i.filter(inst => inst.instructor_id !== instructorId));
+      await deleteDoc(doc(this.firebaseService.firestore, 'instructors', instructorId));
+      await this.loadInstructors();
     } catch (error) {
       console.error('Error deleting instructor:', error);
-      throw error;
     }
   }
 
   // Parents
   async loadParents() {
     try {
-      const parents = await firstValueFrom(this.http.get<Parent[]>(`${this.apiUrl}/parents`));
-      this.parents.set(parents);
+      const snapshot = await getDocs(collection(this.firebaseService.firestore, 'parents'));
+      this.parents.set(snapshot.docs.map(doc => doc.data() as Parent));
     } catch (error) {
       console.error('Error loading parents:', error);
     }
   }
 
-  getParents() { return this.parents(); }
-  
+  getParents() {
+    return this.parents();
+  }
+
   async addParent(parent: Parent) {
     try {
-      const newParent = await firstValueFrom(this.http.post<Parent>(`${this.apiUrl}/parents`, parent));
-      this.parents.update(p => [...p, newParent]);
-      return newParent;
+      // Remove undefined values
+      const cleanParent = Object.fromEntries(
+        Object.entries(parent).filter(([_, v]) => v !== undefined)
+      );
+      await addDoc(collection(this.firebaseService.firestore, 'parents'), cleanParent);
+      await this.loadParents();
     } catch (error) {
       console.error('Error adding parent:', error);
-      throw error;
     }
   }
 
   async updateParent(parent: Parent) {
     try {
-      const updated = await firstValueFrom(this.http.put<Parent>(`${this.apiUrl}/parents/${parent.parent_id}`, parent));
-      this.parents.update(p => p.map(par => par.parent_id === parent.parent_id ? updated : par));
-      return updated;
+      if (!parent.id) return;
+      await updateDoc(doc(this.firebaseService.firestore, 'parents', parent.id.toString()), { ...parent });
+      await this.loadParents();
     } catch (error) {
       console.error('Error updating parent:', error);
-      throw error;
     }
   }
 
   async deleteParent(parentId: string) {
     try {
-      await firstValueFrom(this.http.delete(`${this.apiUrl}/parents/${parentId}`));
-      this.parents.update(p => p.filter(par => par.parent_id !== parentId));
+      await deleteDoc(doc(this.firebaseService.firestore, 'parents', parentId));
+      await this.loadParents();
     } catch (error) {
       console.error('Error deleting parent:', error);
-      throw error;
     }
   }
 
   // Departments
   async loadDepartments() {
     try {
-      const departments = await firstValueFrom(this.http.get<Department[]>(`${this.apiUrl}/departments`));
-      this.departments.set(departments);
+      const snapshot = await getDocs(collection(this.firebaseService.firestore, 'departments'));
+      this.departments.set(snapshot.docs.map(doc => doc.data() as Department));
     } catch (error) {
       console.error('Error loading departments:', error);
     }
   }
 
-  getDepartments() { return this.departments(); }
-  
+  getDepartments() {
+    return this.departments();
+  }
+
   async addDepartment(department: Department) {
     try {
-      const newDepartment = await firstValueFrom(this.http.post<Department>(`${this.apiUrl}/departments`, department));
-      this.departments.update(d => [...d, newDepartment]);
-      return newDepartment;
+      // Remove undefined values
+      const cleanDepartment = Object.fromEntries(
+        Object.entries(department).filter(([_, v]) => v !== undefined)
+      );
+      await addDoc(collection(this.firebaseService.firestore, 'departments'), cleanDepartment);
+      await this.loadDepartments();
     } catch (error) {
       console.error('Error adding department:', error);
-      throw error;
     }
   }
 
   async updateDepartment(department: Department) {
     try {
-      const updated = await firstValueFrom(this.http.put<Department>(`${this.apiUrl}/departments/${department.id}`, department));
-      this.departments.update(d => d.map(dept => dept.id === department.id ? updated : dept));
-      return updated;
+      if (!department.id) return;
+      await updateDoc(doc(this.firebaseService.firestore, 'departments', department.id.toString()), { ...department });
+      await this.loadDepartments();
     } catch (error) {
       console.error('Error updating department:', error);
-      throw error;
     }
   }
 
   async deleteDepartment(id: number) {
     try {
-      await firstValueFrom(this.http.delete(`${this.apiUrl}/departments/${id}`));
-      this.departments.update(d => d.filter(dept => dept.id !== id));
+      await deleteDoc(doc(this.firebaseService.firestore, 'departments', id.toString()));
+      await this.loadDepartments();
     } catch (error) {
       console.error('Error deleting department:', error);
-      throw error;
     }
   }
 }

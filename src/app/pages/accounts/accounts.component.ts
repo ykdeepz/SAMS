@@ -1,6 +1,5 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { HttpClient } from '@angular/common/http';
 import { DataService } from '../../services/data.service';
 import { AuthService } from '../../services/auth.service';
 import { User } from '../../models/user.model';
@@ -18,8 +17,6 @@ import Swal from 'sweetalert2';
 export class AccountsComponent {
   dataService = inject(DataService);
   private authService = inject(AuthService);
-  private http = inject(HttpClient);
-  private apiUrl = 'http://localhost:3000';
 
   // Icons
   readonly UserCircle = UserCircle;
@@ -226,7 +223,10 @@ export class AccountsComponent {
       // Delete the user account
       await this.dataService.deleteUser(account.user_id);
 
-      // Close modal and show success
+      // Reload data and wait for it to complete
+      await this.dataService.loadAllData();
+      
+      // Close modal
       this.closeModal();
       
       await Swal.fire({
@@ -236,9 +236,6 @@ export class AccountsComponent {
         timer: 2000,
         showConfirmButton: false
       });
-
-      // Reload data
-      await this.dataService.loadAllData();
     } catch (error) {
       console.error('Error deleting account:', error);
       await Swal.fire({
@@ -261,19 +258,10 @@ export class AccountsComponent {
       // Get all enrollments for this subject
       const subjectEnrollments = this.dataService.enrollments().filter(e => e.subject_id === subject.subject_id);
       
+      // Note: Attendance records will remain in Firebase but won't be accessible
+      // You could add a cleanup method in DataService if needed
+      
       for (const enrollment of subjectEnrollments) {
-        // Delete attendance records for this enrollment
-        const attendanceRecords = this.dataService.attendance().filter(a => 
-          a.student_id === enrollment.student_id && a.subject_id === subject.subject_id
-        );
-        for (const attendance of attendanceRecords) {
-          try {
-            await this.http.delete(`${this.apiUrl}/attendance/${attendance.attendance_id}`).toPromise();
-          } catch (error) {
-            console.error('Error deleting attendance:', error);
-          }
-        }
-        
         // Delete enrollment
         await this.dataService.unenrollStudent(enrollment.enrollment_id);
       }
@@ -291,15 +279,8 @@ export class AccountsComponent {
     const student = this.dataService.students().find(s => s.user_id === userId);
     if (!student) return;
 
-    // Delete all attendance records
-    const attendanceRecords = this.dataService.attendance().filter(a => a.student_id === student.student_id);
-    for (const attendance of attendanceRecords) {
-      try {
-        await this.http.delete(`${this.apiUrl}/attendance/${attendance.attendance_id}`).toPromise();
-      } catch (error) {
-        console.error('Error deleting attendance:', error);
-      }
-    }
+    // Note: Attendance records will remain in Firebase but won't be accessible
+    // You could add a cleanup method in DataService if needed
 
     // Delete all enrollments
     const enrollments = this.dataService.enrollments().filter(e => e.student_id === student.student_id);
